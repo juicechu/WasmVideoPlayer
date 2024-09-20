@@ -642,6 +642,7 @@ Player.prototype.onVideoParam = function (v) {
     this.videoHeight = v.h;
     this.yLength = this.videoWidth * this.videoHeight;
     this.uvLength = (this.videoWidth / 2) * (this.videoHeight / 2);
+    this.webglPlayer.setViewport(this.videoWidth, this.videoHeight);
 
     /*
     //var playCanvasContext = playCanvas.getContext("2d"); //If get 2d, webgl will be disabled.

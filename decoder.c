@@ -14,6 +14,7 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libavutil/fifo.h"
+#include <libavutil/imgutils.h>
 //#include "libswscale/swscale.h"
 
 #define MIN(X, Y)  ((X) < (Y) ? (X) : (Y))
@@ -114,7 +115,7 @@ void simpleLog(const char* format, ...) {
 
     prefixLength = sprintf(szBuffer, "[%s][%s][DT] ", szTime, tag);
     p = szBuffer + prefixLength;
-    
+
     if (1) {
         va_list ap;
         va_start(ap, format);
@@ -252,7 +253,7 @@ ErrorCode copyYuvData(AVFrame *frame, unsigned char *buffer, int width, int heig
             dst += width / 2;
         }
     } while (0);
-    return ret;	
+    return ret;
 }
 
 /*
@@ -271,7 +272,7 @@ ErrorCode yuv420pToRgb32(unsigned char *yuvBuff, unsigned char *rgbBuff, int wid
             break;
         }
 
-        
+
         avpicture_fill(&yuvPicture, yuvBuff, AV_PIX_FMT_YUV420P, width, height);
         avpicture_fill(&rgbPicture, rgbBuff, AV_PIX_FMT_RGB32, width, height);
 
@@ -301,7 +302,7 @@ ErrorCode processDecodedVideoFrame(AVFrame *frame) {
             break;
         }
 
-        if (decoder->videoCodecContext->pix_fmt != AV_PIX_FMT_YUV420P) {
+        if (decoder->videoCodecContext->pix_fmt != AV_PIX_FMT_YUV420P && decoder->videoCodecContext->pix_fmt != AV_PIX_FMT_YUVJ420P) {
             simpleLog("Not YUV420P, but unsupported format %d.", decoder->videoCodecContext->pix_fmt);
             ret = kErrorCode_Invalid_Format;
             break;
@@ -474,7 +475,7 @@ int readFromFifo(uint8_t *data, int len) {
     do {
         if (decoder->fifo == NULL) {
             break;
-        }	
+        }
 
         availableBytes = av_fifo_size(decoder->fifo);
         if (availableBytes <= 0) {
@@ -499,7 +500,7 @@ int readCallback(void *opaque, uint8_t *data, int len) {
 
         if (data == NULL || len <= 0) {
             break;
-        }		
+        }
 
         ret = decoder->isStream ? readFromFifo(data, len) : readFromFile(data, len);
     } while (0);
@@ -685,13 +686,12 @@ ErrorCode openDecoder(int *paramArray, int paramCount, long videoCallback, long 
     do {
         simpleLog("Opening decoder.");
 
-        av_register_all();
-        avcodec_register_all();
+        avformat_network_init();
 
         if (logLevel == kLogLevel_All) {
             av_log_set_callback(ffmpegLogCallback);
         }
-        
+
         decoder->avformatContext = avformat_alloc_context();
         decoder->customIoBuffer = (unsigned char*)av_mallocz(kCustomIoBufferSize);
 
@@ -720,7 +720,7 @@ ErrorCode openDecoder(int *paramArray, int paramCount, long videoCallback, long 
             simpleLog("avformat_open_input failed %d %s.", ret, err_info);
             break;
         }
-        
+
         simpleLog("avformat_open_input success.");
 
         r = avformat_find_stream_info(decoder->avformatContext, NULL);
@@ -782,13 +782,13 @@ ErrorCode openDecoder(int *paramArray, int paramCount, long videoCallback, long 
         decoder->swsCtx = sws_getContext(
             decoder->videoCodecContext->width,
             decoder->videoCodecContext->height,
-            decoder->videoCodecContext->pix_fmt, 
+            decoder->videoCodecContext->pix_fmt,
             decoder->videoCodecContext->width,
             decoder->videoCodecContext->height,
             AV_PIX_FMT_RGB32,
-            SWS_BILINEAR, 
-            0, 
-            0, 
+            SWS_BILINEAR,
+            0,
+            0,
             0);
         if (decoder->swsCtx == NULL) {
             simpleLog("sws_getContext failed.");
@@ -796,16 +796,16 @@ ErrorCode openDecoder(int *paramArray, int paramCount, long videoCallback, long 
             break;
         }
         */
-        
-        decoder->videoSize = avpicture_get_size(
+
+        decoder->videoSize = av_image_get_buffer_size(
             decoder->videoCodecContext->pix_fmt,
             decoder->videoCodecContext->width,
-            decoder->videoCodecContext->height);
+            decoder->videoCodecContext->height, 1);
 
         decoder->videoBufferSize = 3 * decoder->videoSize;
         decoder->yuvBuffer = (unsigned char *)av_mallocz(decoder->videoBufferSize);
         decoder->avFrame = av_frame_alloc();
-        
+
         params[0] = 1000 * (decoder->avformatContext->duration + 5000) / AV_TIME_BASE;
         params[1] = decoder->videoCodecContext->pix_fmt;
         params[2] = decoder->videoCodecContext->width;
@@ -879,10 +879,11 @@ ErrorCode closeDecoder() {
         if (decoder->pcmBuffer != NULL) {
             av_freep(&decoder->pcmBuffer);
         }
-        
+
         if (decoder->avFrame != NULL) {
             av_freep(&decoder->avFrame);
         }
+        avformat_network_deinit();
         simpleLog("All buffer released.");
     } while (0);
     return ret;

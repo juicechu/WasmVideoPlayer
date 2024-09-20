@@ -107,9 +107,9 @@ WebGLPlayer.prototype.renderFrame = function (videoFrame, width, height, uOffset
     }
 
     var gl = this.gl;
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    gl.clearColor(0.0, 0.0, 0.0, 0.0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    //gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    //gl.clearColor(0.0, 0.0, 0.0, 0.0);
+    //gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.y.fill(width, height, videoFrame.subarray(0, uOffset));
     gl.u.fill(width >> 1, height >> 1, videoFrame.subarray(uOffset, uOffset + vOffset));
@@ -145,4 +145,21 @@ WebGLPlayer.prototype.exitfullscreen = function (){
     } else {
         alert("Exit fullscreen doesn't work");
     }
+}
+WebGLPlayer.prototype.setViewport = function (width, height) {
+    // render mode
+    // auto scale for fit mode
+    var gl = this.gl, canvas = this.canvas;
+    let scale = Math.min(canvas.width / width, canvas.height / height);
+    let scaleWidth = width * scale;
+    let scaleHeight = height * scale;
+    let x = canvas.width / 2 - scaleWidth / 2;
+    let y = canvas.height / 2 - scaleHeight / 2;
+    gl.viewport(x, y, scaleWidth, scaleHeight);
+
+    // fill mode
+    //gl.viewport(0, 0, canvas.width, canvas.height);
+
+    gl.clearColor(0.0, 0.0, 0.0, 0.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
 }
